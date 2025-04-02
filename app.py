@@ -31,13 +31,17 @@ try:
         "Tracking link": "Tracking Link"
     }, inplace=True)
 
+    # Remove rows where "Customer Name" is missing
+    df = df.dropna(subset=["Customer Name"])
+
 except Exception as e:
     st.error(f"Error fetching data: {e}")
     df = pd.DataFrame()  # Empty dataframe to prevent crashes
 
-# Sidebar Navigation
-st.sidebar.header("Navigation")
-page = st.sidebar.radio("Go to", ["📋 Order Summary", "🏭 Manufacturing", "🚚 Dispatch"])
+# Sidebar Navigation with Better Visibility
+st.sidebar.header("📌 Open Menu")  # More prominent title
+st.sidebar.markdown("⬅️ **Tap here to navigate**")  # Clear text for mobile users
+page = st.sidebar.radio("Go to section:", ["📋 Order Summary", "🏭 Manufacturing", "🚚 Dispatch"])
 
 # Order Summary Page
 if page == "📋 Order Summary":
@@ -46,9 +50,12 @@ if page == "📋 Order Summary":
         st.warning("No data available.")
     else:
         for _, row in df.iterrows():
-            with st.expander(f"🛍 Order {row.get('Order Date', 'N/A')} - {row.get('Customer Name', 'N/A')}"):
-                st.markdown(f"**Status:** {row.get('Status', 'N/A')}")
-                st.progress(0.5 if row.get('Status') == "In Progress" else 1.0)
+            order_type = "COD"  # Placeholder logic, will be updated later
+            with st.expander(f"🛍 Order - {row.get('Customer Name', 'N/A')}"):
+                st.markdown(f"**Customer Name:** {row.get('Customer Name', 'N/A')}")
+                st.markdown(f"**Delivery City:** {row.get('Delivery Location', 'N/A')}")
+                st.markdown(f"**Required Delivery Date:** {row.get('Expected Delivery', 'N/A')}")
+                st.markdown(f"**Order Type:** {order_type}")
 
 # Manufacturing Page
 elif page == "🏭 Manufacturing":
@@ -57,7 +64,7 @@ elif page == "🏭 Manufacturing":
         st.warning("No data available.")
     else:
         for _, row in df.iterrows():
-            with st.expander(f"🛠 {row.get('Order Date', 'N/A')} - {row.get('Customer Name', 'N/A')}"):
+            with st.expander(f"🛠 Order - {row.get('Customer Name', 'N/A')}"):
                 st.markdown(f"**Product:** [{row.get('Product Type', 'N/A')}]({row.get('Product Link', '#' )})")
                 st.markdown(f"**Customization:** {row.get('Customization', 'N/A')}")
 
@@ -68,13 +75,12 @@ elif page == "🚚 Dispatch":
         st.warning("No data available.")
     else:
         for i, row in df.iterrows():
-            with st.expander(f"📦 {row.get('Order Date', 'N/A')} - {row.get('Customer Name', 'N/A')}"):
+            with st.expander(f"📦 Order - {row.get('Customer Name', 'N/A')}"):
                 st.markdown(f"**Final Price:** ₹{row.get('Final Price', 'N/A')}")
                 st.markdown(f"**Initial Paid:** ₹{row.get('Initial Paid', 'N/A')}")
-                st.markdown(f"**Shipping Cost:** ₹{row.get('Shipping Cost', 'N/A')}")
                 st.markdown(f"**Delivery Location:** {row.get('Delivery Location', 'N/A')}")
+                st.markdown(f"**Delivery Address:** ")
                 
                 # Unique key to prevent Streamlit error
                 pan_key = f"pan_{i}"
                 st.file_uploader(f"Upload PAN Card for {row.get('Customer Name', 'N/A')}", type=["png", "jpg", "pdf"], key=pan_key)
-
