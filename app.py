@@ -12,18 +12,16 @@ API_URL = "https://script.google.com/macros/s/AKfycbx37U8_-DBdjIYflNhFwmmUin4o2Z
 # Fetch Data from Google Sheets API
 try:
     response = requests.get(API_URL)
-    response.raise_for_status()  # Ensure no HTTP errors
+    response.raise_for_status()
     data = response.json()
 
     if isinstance(data, list) and len(data) > 0:
         df = pd.DataFrame(data)
-
-        # Ensure column names are correctly mapped
         df.rename(columns={
             "Order date": "Order Date",
             "Order ID": "Order ID",
             "Customer name": "Customer Name",
-            "Expected delivery date": "Expected Delivery",
+            "Customer phone": "Customer Phone",
             "Product type": "Product Type",
             "Product link": "Product Link",
             "Customization requirement": "Customization",
@@ -35,12 +33,10 @@ try:
             "Delivery address": "Delivery Address",
             "Expected dispatch date": "Dispatch Date",
             "Tracking document": "Tracking Document",
-            "PAN": "PAN Card"
+            "PAN": "PAN Card",
+            "Status": "Status"
         }, inplace=True)
-
-        # Ensure Order ID is not empty
         df = df.dropna(subset=["Order ID"])
-
     else:
         st.warning("⚠️ No valid data found. Check API response.")
         df = pd.DataFrame()
@@ -61,17 +57,21 @@ else:
 
             with col1:
                 st.markdown(f"**📅 Order date:** {row.get('Order Date', 'N/A')}")
-                st.markdown(f"**📅 Required delivery:** {row.get('Expected Delivery', 'N/A')}")
+                st.markdown(f"**📞 Customer phone:** {row.get('Customer Phone', 'N/A')}")
                 st.markdown(f"**📦 Product:** [{row.get('Product Type', 'N/A')}]({row.get('Product Link', '#')})")
                 st.markdown(f"**🪚 Customization:** {row.get('Customization', 'N/A')}")
 
             with col2:
                 st.markdown(f"**💰 Final price:** ₹{row.get('Final Price', 'N/A')}")
                 st.markdown(f"**💵 Initial paid:** ₹{row.get('Initial Paid', 'N/A')}")
-                st.markdown(f"**📍 Delivery location:** {row.get('Delivery Location', 'N/A')}")
-                st.markdown(f"**🏠 Delivery address:** {row.get('Delivery Address', 'N/A')}")
-
-            st.markdown(f"**🚛 Expected Dispatch Date:** {row.get('Dispatch Date', 'N/A')}")
+                st.markdown(f"**📍 Delivery location:** {row.get('Delivery Address', 'N/A')}")
+            
+            # Order Status Dropdown
+            status_options = ["Confirmed", "Manufacturing Stage 1", "Manufacturing Stage 2", "Dispatched"]
+            current_status = row.get("Status", "Confirmed")  # Default to 'Confirmed' if not set
+            status_index = status_options.index(current_status) if current_status in status_options else 0
+            
+            selected_status = st.selectbox("🔄 Update Order Status", status_options, index=status_index, key=f"status_{i}")
 
             # Upload PAN Card
             pan_key = f"pan_{i}"
@@ -81,31 +81,28 @@ else:
             tracking_key = f"tracking_{i}"
             tracking_file = st.file_uploader(f"📄 Upload Tracking Document for {row.get('Customer Name', 'N/A')}", type=["png", "jpg", "pdf"], key=tracking_key)
 
-            # Save uploaded files
-            if pan_file or tracking_file:
-                save_button = st.button(f"💾 Save Documents for Order {row.get('Order ID', 'N/A')}", key=f"save_{i}")
+            # Save uploaded files and status update
+            save_button = st.button(f"💾 Save Changes for Order {row.get('Order ID', 'N/A')}", key=f"save_{i}")
+            
+            if save_button:
+                pan_base64 = base64.b64encode(pan_file.read()).decode() if pan_file else ""
+                tracking_base64 = base64.b64encode(tracking_file.read()).decode() if tracking_file else ""
 
-                if save_button:
-                    # Convert files to base64
-                    pan_base64 = base64.b64encode(pan_file.read()).decode() if pan_file else ""
-                    tracking_base64 = base64.b64encode(tracking_file.read()).decode() if tracking_file else ""
+                data_to_send = {
+                    "order_id": row.get("Order ID", "N/A"),
+                    "pan_card_link": pan_base64,
+                    "tracking_doc_link": tracking_base64,
+                    "status": selected_status
+                }
+                
+                try:
+                    response = requests.post(API_URL, json=data_to_send)
+                    response.raise_for_status()
+                    result = response.json()
 
-                    # Send Data to API
-                    data_to_send = {
-                        "order_id": row.get("Order ID", "N/A"),
-                        "pan_card_link": pan_base64,
-                        "tracking_doc_link": tracking_base64
-                    }
-
-                    try:
-                        response = requests.post(API_URL, json=data_to_send)
-                        response.raise_for_status()
-                        result = response.json()
-
-                        if result.get("status") == "success":
-                            st.success(f"✅ Documents saved successfully for Order {row.get('Order ID', 'N/A')}!")
-                        else:
-                            st.error(f"❌ Failed to save documents: {result.get('message')}")
-
-                    except Exception as e:
-                        st.error(f"❌ Error uploading documents: {e}")
+                    if result.get("status") == "success":
+                        st.success(f"✅ Changes saved successfully for Order {row.get('Order ID', 'N/A')}!")
+                    else:
+                        st.error(f"❌ Failed to save changes: {result.get('message')}")
+                except Exception as e:
+                    st.error(f"❌ Error updating order: {e}")
